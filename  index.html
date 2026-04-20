@@ -1,0 +1,351 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:#f5f3ee;color:#1a1a1a;min-height:100vh;}
+  :root{--gold:#c8a84b;--deep:#1e2d3d;--warm:#f7f4ee;--accent:#2e7d4f;--danger:#c0392b;--muted:#7a8590;}
+  header{background:var(--deep);color:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;}
+  .brand{display:flex;align-items:baseline;gap:10px;}
+  .brand-name{font-size:22px;font-weight:600;letter-spacing:-0.5px;}
+  .brand-tag{font-family:'DM Mono',monospace;font-size:11px;color:var(--gold);letter-spacing:2px;padding:3px 8px;border:1px solid rgba(200,168,75,.4);border-radius:2px;}
+  .header-meta{font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,.4);letter-spacing:1px;}
+  .layout{display:grid;grid-template-columns:300px 1fr 300px;height:calc(100vh - 52px);}
+  .sidebar{background:#fff;border-right:1px solid #e8e4dc;overflow-y:auto;}
+  .sidebar-right{background:#fff;border-left:1px solid #e8e4dc;overflow-y:auto;}
+  .section-head{padding:12px 16px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);border-bottom:1px solid #f0ece4;background:var(--warm);}
+  .map-center{position:relative;}
+  #map{width:100%;height:100%;}
+  .zone-card{margin:10px;border:1px solid #eae6de;border-radius:4px;cursor:pointer;transition:.15s;overflow:hidden;}
+  .zone-card:hover{border-color:var(--gold);box-shadow:0 2px 12px rgba(200,168,75,.15);}
+  .zone-card.active{border-color:var(--accent);box-shadow:0 2px 12px rgba(46,125,79,.2);}
+  .zone-top{padding:12px 14px;border-bottom:1px solid #f0ece4;}
+  .zone-name{font-size:16px;font-weight:600;color:var(--deep);margin-bottom:4px;}
+  .zone-sub{font-size:12px;color:var(--muted);}
+  .zone-bottom{padding:8px 14px;display:flex;gap:6px;align-items:center;}
+  .gvs-bar{flex:1;height:6px;background:#f0ece4;border-radius:3px;overflow:hidden;}
+  .gvs-fill{height:100%;border-radius:3px;transition:.5s;}
+  .gvs-num{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;}
+  .tag{font-size:10px;padding:2px 7px;border-radius:2px;font-weight:500;letter-spacing:.5px;}
+  .tag.hot{background:rgba(192,57,43,.1);color:var(--danger);}
+  .tag.rise{background:rgba(200,168,75,.15);color:#9a7a20;}
+  .tag.stable{background:rgba(46,125,79,.1);color:var(--accent);}
+  .tag.watch{background:rgba(30,45,61,.1);color:var(--deep);}
+  /* Right panel */
+  .detail-block{padding:14px 16px;border-bottom:1px solid #f0ece4;}
+  .detail-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:4px;}
+  .detail-value{font-size:18px;font-weight:600;color:var(--deep);}
+  .detail-sub{font-size:12px;color:var(--muted);margin-top:1px;}
+  .metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 14px;}
+  .metric-cell{background:var(--warm);padding:10px;border-radius:4px;border:1px solid #ede9e0;}
+  .metric-lbl{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1.5px;margin-bottom:4px;}
+  .metric-val{font-size:16px;font-weight:600;color:var(--deep);}
+  .metric-delta{font-size:11px;color:var(--accent);}
+  .metric-delta.neg{color:var(--danger);}
+  .source-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 8px;border-radius:2px;margin:2px;border:1px solid #e8e4dc;color:var(--muted);}
+  .source-tag.live{border-color:rgba(46,125,79,.3);color:var(--accent);background:rgba(46,125,79,.05);}
+  .source-tag.scrape{border-color:rgba(200,168,75,.4);color:#9a7a20;background:rgba(200,168,75,.07);}
+  .chart-wrap{padding:14px 16px;border-bottom:1px solid #f0ece4;}
+  .chart-title{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;}
+  canvas.small-chart{max-height:130px;}
+  .proj-bar{margin:0 14px 8px;background:#f0ece4;border-radius:3px;overflow:hidden;height:8px;}
+  .proj-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--gold));border-radius:3px;transition:.6s;}
+  .proj-label{display:flex;justify-content:space-between;margin:0 14px 4px;font-size:11px;color:var(--muted);}
+  /* Map controls */
+  .map-controls{position:absolute;top:12px;left:12px;z-index:1000;display:flex;flex-direction:column;gap:6px;}
+  .ctrl-btn{background:#fff;border:1px solid #ddd;color:var(--deep);font-family:'DM Mono',monospace;font-size:10px;padding:7px 12px;cursor:pointer;letter-spacing:1px;border-radius:3px;box-shadow:0 1px 4px rgba(0,0,0,.1);transition:.15s;}
+  .ctrl-btn.active{border-color:var(--gold);color:var(--gold);}
+  .ctrl-btn:hover{border-color:var(--deep);}
+  .legend{position:absolute;bottom:20px;left:12px;z-index:1000;background:#fff;border:1px solid #e0dbd0;padding:12px;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.08);}
+  .legend-title{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:8px;}
+  .legend-row{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--deep);margin-bottom:4px;}
+  .legend-dot{width:12px;height:12px;border-radius:50%;}
+  .scroll::-webkit-scrollbar{width:3px;}
+  .scroll::-webkit-scrollbar-track{background:#f5f3ee;}
+  .scroll::-webkit-scrollbar-thumb{background:#d8d3c8;}
+  .infra-list{padding:8px 14px;}
+  .infra-item{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #f5f2ec;}
+  .infra-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+  .infra-icon.metro{background:rgba(200,168,75,.15);}
+  .infra-icon.road{background:rgba(30,45,61,.1);}
+  .infra-icon.sewer{background:rgba(46,125,79,.1);}
+  .infra-icon.zone{background:rgba(192,57,43,.1);}
+  .infra-name{font-size:13px;font-weight:500;color:var(--deep);}
+  .infra-meta{font-size:11px;color:var(--muted);}
+  .score-ring{display:flex;align-items:center;justify-content:center;padding:16px;flex-direction:column;}
+  .score-num{font-size:52px;font-weight:300;color:var(--deep);line-height:1;font-family:'DM Sans',sans-serif;}
+  .score-unit{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;margin-top:4px;}
+  .upload-area{margin:12px;border:2px dashed #ddd;padding:14px;text-align:center;cursor:pointer;border-radius:4px;transition:.2s;}
+  .upload-area:hover{border-color:var(--gold);background:rgba(200,168,75,.04);}
+  .upload-area p{font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;}
+  .filter-row{display:flex;gap:6px;padding:10px 12px;flex-wrap:wrap;}
+  .fchip{font-family:'DM Mono',monospace;font-size:10px;padding:5px 10px;border:1px solid #ddd;cursor:pointer;border-radius:20px;color:var(--muted);transition:.15s;background:#fff;}
+  .fchip.active{border-color:var(--gold);color:#9a7a20;background:rgba(200,168,75,.07);}
+  .fchip:hover{border-color:var(--deep);}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="brand-name">UrbanIQ</span>
+    <span class="brand-tag">GROWTH ENGINE v2.4</span>
+  </div>
+  <div class="header-meta">PREDICTIVE GEOSPATIAL ANALYTICS · NCR REGION · Q3 2025</div>
+</header>
+<div class="layout">
+  <!-- Left: Zone List -->
+  <div class="sidebar scroll">
+    <div class="section-head">GROWTH VELOCITY RANKING</div>
+    <div class="filter-row">
+      <div class="fchip active" onclick="setFilter('all',this)">ALL ZONES</div>
+      <div class="fchip" onclick="setFilter('hot',this)">HOT</div>
+      <div class="fchip" onclick="setFilter('rise',this)">RISING</div>
+      <div class="fchip" onclick="setFilter('stable',this)">STABLE</div>
+    </div>
+    <div id="zone-list"></div>
+    <div class="section-head" style="margin-top:4px;">MUNICIPAL DATA FEEDS</div>
+    <div class="infra-list" id="infra-list"></div>
+    <div class="section-head">MANUAL DATA UPLOAD</div>
+    <div class="upload-area" onclick="fakeUpload()">
+      <p>▲ CSV / PDF / JSON</p>
+      <p style="margin-top:5px;font-size:10px;">Municipality reports, listing exports</p>
+    </div>
+    <div id="upload-log" style="padding:0 12px 12px;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);"></div>
+  </div>
+
+  <!-- Map -->
+  <div class="map-center">
+    <div id="map"></div>
+    <div class="map-controls">
+      <button class="ctrl-btn active" onclick="setView('heatmap',this)">HEAT MAP</button>
+      <button class="ctrl-btn" onclick="setView('infra',this)">INFRASTRUCTURE</button>
+      <button class="ctrl-btn" onclick="setView('price',this)">PRICE VELOCITY</button>
+    </div>
+    <div class="legend">
+      <div class="legend-title">GROWTH VELOCITY</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#c0392b;"></div>Critical (85+)</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#e67e22;"></div>High (65–84)</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#c8a84b;"></div>Rising (45–64)</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#2e7d4f;"></div>Stable (25–44)</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#7a8590;"></div>Low (&lt;25)</div>
+    </div>
+  </div>
+
+  <!-- Right: Detail Panel -->
+  <div class="sidebar-right scroll">
+    <div id="right-panel">
+      <div style="padding:40px 20px;text-align:center;color:var(--muted);font-size:14px;line-height:1.8;">
+        Select a zone on the map or from the list to view its growth forecast and market intelligence.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Zone Data
+const zones=[
+  {id:1,name:'Dwarka Expressway',city:'Gurugram',lat:28.58,lng:77.04,gvs:91,trend:'hot',tag:'hot',price_sqft:8200,rent_yield:4.1,listing_density:89,muni_score:88,delta_12m:22,delta_36m:41,horizon:'HIGH ACCELERATION',desc:'Metro corridor + NH-48 proximity driving extreme demand. Multiple HRERA-approved projects. Sewage expansion tender floated Q2 2025.',sources:['99acres','MagicBricks','MCG Portal'],sentiment:82,under_const_pct:62,ready_pct:38},
+  {id:2,name:'Sector 150 Noida',city:'Noida',lat:28.47,lng:77.42,gvs:83,trend:'hot',tag:'hot',price_sqft:6800,rent_yield:3.8,listing_density:76,muni_score:79,delta_12m:18,delta_36m:34,horizon:'STRONG GROWTH',desc:'Green corridor zoning confirmed. Noida Authority road widening approved. Institutional buyer activity up 40%.',sources:['MagicBricks','NDA Portal'],sentiment:74,under_const_pct:55,ready_pct:45},
+  {id:3,name:'Sohna Road South',city:'Gurugram',lat:28.39,lng:77.05,gvs:74,trend:'rise',tag:'rise',price_sqft:5900,rent_yield:4.4,listing_density:58,muni_score:65,delta_12m:14,delta_36m:28,horizon:'RISING',desc:'CLU policy change imminent. Rental yields outperforming adjacent micro-markets. Undervalued vs Dwarka Expressway.',sources:['99acres','HRERA'],sentiment:67,under_const_pct:40,ready_pct:60},
+  {id:4,name:'Greater Faridabad',city:'Faridabad',lat:28.32,lng:77.33,gvs:58,trend:'rise',tag:'rise',price_sqft:4200,rent_yield:5.1,listing_density:44,muni_score:52,delta_12m:9,delta_36m:21,horizon:'MODERATE UPSIDE',desc:'High rental absorption. Metro extension Phase-IV study initiated. Lower land cost advantage attracting mid-income developers.',sources:['NagarNigam Portal','99acres'],sentiment:54,under_const_pct:30,ready_pct:70},
+  {id:5,name:'Yamuna Expressway',city:'Greater Noida',lat:28.36,lng:77.58,gvs:88,trend:'hot',tag:'hot',price_sqft:5100,rent_yield:3.5,listing_density:82,muni_score:90,delta_12m:20,delta_36m:38,horizon:'HIGH ACCELERATION',desc:'Jewar Airport proximity catalyst. YEIDA notified 4 new residential sectors Q1 2025. Industrial cluster driving job creation.',sources:['YEIDA','MagicBricks','99acres'],sentiment:85,under_const_pct:71,ready_pct:29},
+  {id:6,name:'Rohini Extension',city:'Delhi',lat:28.74,lng:77.03,gvs:42,trend:'stable',tag:'stable',price_sqft:9800,rent_yield:2.9,listing_density:35,muni_score:38,delta_12m:5,delta_36m:12,horizon:'STEADY',desc:'Mature micro-market. Limited new supply. Metro connected. Primarily secondary sale activity.',sources:['99acres','MCD Portal'],sentiment:48,under_const_pct:15,ready_pct:85},
+  {id:7,name:'Bhiwadi–Alwar Road',city:'Rajasthan',lat:28.20,lng:76.84,gvs:63,trend:'rise',tag:'rise',price_sqft:2900,rent_yield:6.2,listing_density:31,muni_score:58,delta_12m:11,delta_36m:24,horizon:'EMERGING',desc:'Industrial zone anchor + RIICO expansion. Highest rental yield in NCR. Significant first-mover advantage window.',sources:['RIICO','MagicBricks'],sentiment:59,under_const_pct:45,ready_pct:55},
+  {id:8,name:'Raj Nagar Ext.',city:'Ghaziabad',lat:28.67,lng:77.43,gvs:36,trend:'stable',tag:'stable',price_sqft:3800,rent_yield:4.8,listing_density:28,muni_score:30,delta_12m:4,delta_36m:10,horizon:'STABLE',desc:'Inventory overhang persists. Affordability segment. Long-term hold recommended over 60-month horizon.',sources:['99acres','GDA Portal'],sentiment:38,under_const_pct:25,ready_pct:75},
+];
+
+const infraEvents=[
+  {type:'metro',label:'Metro Phase V Extension',zone:'Dwarka Expressway',status:'Approved',icon:'🚇'},
+  {type:'road',label:'NH-334B Widening',zone:'Yamuna Expressway',status:'Tender Issued',icon:'🛣'},
+  {type:'sewer',label:'Sewage Expansion CLU',zone:'Sohna Road South',status:'Pending',icon:'🏗'},
+  {type:'zone',label:'Industrial Zone Expansion',zone:'Bhiwadi',status:'Notified',icon:'🏭'},
+  {type:'metro',label:'Jewar Airport Rail Link',zone:'Yamuna Exp.',status:'DPR Stage',icon:'✈'},
+  {type:'road',label:'NHAI Peripheral Ring',zone:'Greater Faridabad',status:'Land Acquired',icon:'🛣'},
+];
+
+const gvsColor=v=>v>=85?'#c0392b':v>=65?'#e67e22':v>=45?'#c8a84b':v>=25?'#2e7d4f':'#7a8590';
+
+// Map
+let map, activeView='heatmap', activeZone=null, mapLayers=[];
+
+function initMap(){
+  map=L.map('map',{zoomControl:false,attributionControl:false}).setView([28.52,77.25],10);
+  L.control.zoom({position:'bottomright'}).addTo(map);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:18}).addTo(map);
+  renderMapLayer();
+}
+
+function renderMapLayer(){
+  mapLayers.forEach(l=>map.removeLayer(l)); mapLayers=[];
+  zones.forEach(z=>{
+    const r=z.gvs/100*40+15;
+    const c=gvsColor(z.gvs);
+    const circle=L.circle([z.lat,z.lng],{
+      radius:r*200,color:c,fillColor:c,fillOpacity:0.35,weight:2,opacity:0.7
+    }).addTo(map);
+    const m=L.circleMarker([z.lat,z.lng],{radius:8,color:c,fillColor:c,fillOpacity:1,weight:2}).addTo(map);
+    circle.on('click',()=>selectZone(z));
+    m.on('click',()=>selectZone(z));
+    m.bindTooltip(`<b>${z.name}</b><br>GVS: ${z.gvs} · ${z.city}`,{direction:'top',className:'',offset:[0,-10]});
+    mapLayers.push(circle,m);
+  });
+}
+
+function setView(v,btn){
+  activeView=v;
+  document.querySelectorAll('.ctrl-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderMapLayer();
+}
+
+// Zone List
+let currentFilter='all';
+function setFilter(f,el){
+  currentFilter=f;
+  document.querySelectorAll('.fchip').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  renderZoneList();
+}
+
+function renderZoneList(){
+  const filtered=currentFilter==='all'?zones:zones.filter(z=>z.tag===currentFilter);
+  const sorted=[...filtered].sort((a,b)=>b.gvs-a.gvs);
+  document.getElementById('zone-list').innerHTML=sorted.map(z=>`
+    <div class="zone-card ${activeZone&&activeZone.id===z.id?'active':''}" onclick="selectZone(${z.id})">
+      <div class="zone-top">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div class="zone-name">${z.name}</div>
+            <div class="zone-sub">${z.city} · ₹${z.price_sqft.toLocaleString()}/sqft</div>
+          </div>
+          <span class="tag ${z.tag}">${z.tag.toUpperCase()}</span>
+        </div>
+      </div>
+      <div class="zone-bottom">
+        <div class="gvs-bar"><div class="gvs-fill" style="width:${z.gvs}%;background:${gvsColor(z.gvs)};"></div></div>
+        <span class="gvs-num" style="color:${gvsColor(z.gvs)};">${z.gvs}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectZone(idOrZone){
+  const z=typeof idOrZone==='number'?zones.find(x=>x.id===idOrZone):idOrZone;
+  activeZone=z;
+  map.setView([z.lat,z.lng],12,{animate:true});
+  renderZoneList();
+  renderDetail(z);
+}
+
+// Detail Panel with Chart
+function renderDetail(z){
+  const c=gvsColor(z.gvs);
+  document.getElementById('right-panel').innerHTML=`
+    <div class="detail-block">
+      <div class="detail-label">SELECTED ZONE</div>
+      <div class="detail-value">${z.name}</div>
+      <div class="detail-sub">${z.city} Metro Region</div>
+    </div>
+    <div class="score-ring">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:8px;">GROWTH VELOCITY SCORE</div>
+      <div class="score-num" style="color:${c};">${z.gvs}</div>
+      <div class="score-unit">${z.horizon}</div>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-cell">
+        <div class="metric-lbl">PRICE/SQFT</div>
+        <div class="metric-val">₹${z.price_sqft.toLocaleString()}</div>
+        <div class="metric-delta">▲ ${z.delta_12m}% YoY</div>
+      </div>
+      <div class="metric-cell">
+        <div class="metric-lbl">RENTAL YIELD</div>
+        <div class="metric-val">${z.rent_yield}%</div>
+        <div class="metric-delta ${z.rent_yield>4.5?'':'neg'}">${z.rent_yield>4.5?'▲ ABOVE':'▼ BELOW'} NCR AVG</div>
+      </div>
+      <div class="metric-cell">
+        <div class="metric-lbl">LISTING DENSITY</div>
+        <div class="metric-val">${z.listing_density}</div>
+        <div class="metric-delta">Projects active</div>
+      </div>
+      <div class="metric-cell">
+        <div class="metric-lbl">MUNI SIGNAL</div>
+        <div class="metric-val">${z.muni_score}/100</div>
+        <div class="metric-delta">Infra pipeline score</div>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <div class="chart-title">PRICE APPRECIATION FORECAST (24-60 MONTHS)</div>
+      <canvas id="priceChart" class="small-chart"></canvas>
+    </div>
+    <div class="detail-block">
+      <div class="detail-label">SUPPLY MIX</div>
+      <div class="proj-label"><span>Under Construction</span><span>${z.under_const_pct}%</span></div>
+      <div class="proj-bar"><div class="proj-fill" style="width:${z.under_const_pct}%;"></div></div>
+      <div class="proj-label" style="margin-top:6px;"><span>Ready to Move</span><span>${z.ready_pct}%</span></div>
+      <div class="proj-bar"><div class="proj-fill" style="width:${z.ready_pct}%;background:var(--deep);"></div></div>
+    </div>
+    <div class="detail-block">
+      <div class="detail-label">ANALYST ASSESSMENT</div>
+      <div style="font-size:13px;color:#444;line-height:1.7;margin-top:4px;">${z.desc}</div>
+    </div>
+    <div class="detail-block">
+      <div class="detail-label" style="margin-bottom:6px;">DATA SOURCES</div>
+      <div>${z.sources.map(s=>`<span class="source-tag ${s.includes('Portal')||s.includes('YEIDA')||s.includes('HRERA')||s.includes('RIICO')?'scrape':'live'}">● ${s}</span>`).join('')}</div>
+    </div>
+    <div class="detail-block">
+      <div class="detail-label">DIGITAL SENTIMENT INDEX</div>
+      <div style="margin-top:6px;height:8px;background:#f0ece4;border-radius:4px;overflow:hidden;">
+        <div style="height:100%;width:${z.sentiment}%;background:${z.sentiment>70?'var(--accent)':z.sentiment>50?'var(--gold)':'var(--danger)'};border-radius:4px;transition:.6s;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-top:4px;"><span>Negative</span><span>${z.sentiment}/100</span><span>Positive</span></div>
+    </div>
+  `;
+  // Draw chart
+  setTimeout(()=>{
+    const ctx=document.getElementById('priceChart');
+    if(!ctx) return;
+    const base=z.price_sqft;
+    const r=z.delta_36m/36;
+    const labels=['Now','12m','24m','36m','48m','60m'];
+    const data=labels.map((_,i)=>Math.round(base*(1+r*i)));
+    new Chart(ctx,{
+      type:'line',
+      data:{labels,datasets:[{data,borderColor:c,backgroundColor:c+'20',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:c,borderWidth:2}]},
+      options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(0,0,0,.04)'},ticks:{font:{size:10}}},y:{grid:{color:'rgba(0,0,0,.04)'},ticks:{font:{size:10},callback:v=>'₹'+v.toLocaleString()}}}}
+    });
+  },100);
+}
+
+// Infra Events
+function renderInfra(){
+  document.getElementById('infra-list').innerHTML=infraEvents.map(e=>`
+    <div class="infra-item">
+      <div class="infra-icon ${e.type}">${e.icon}</div>
+      <div>
+        <div class="infra-name">${e.label}</div>
+        <div class="infra-meta">${e.zone} · <span style="color:${e.status==='Approved'||e.status==='Notified'?'var(--accent)':'var(--gold)'};">${e.status}</span></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function fakeUpload(){
+  const log=document.getElementById('upload-log');
+  const files=['MCD_Q2_infrastructure.pdf','99acres_export_NCR.csv','MagicBricks_listing_data.json'];
+  const f=files[Math.floor(Math.random()*files.length)];
+  log.innerHTML=`<div style="padding:4px 0;border-top:1px solid #eee;margin-top:6px;">[PARSED] ${f}<br><span style="color:var(--accent);">✓ ${Math.floor(Math.random()*80)+20} records ingested</span></div>`+log.innerHTML;
+}
+
+// Init
+initMap();
+renderZoneList();
+renderInfra();
+</script>
+</body>
+</html>
